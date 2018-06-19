@@ -80,6 +80,23 @@ func (q *ContainsPointQuery) Contains(p Point) bool {
 	return false
 }
 
+// Contains reports whether any shape in the queries index contains the point p
+// under the queries vertex model (Open, SemiOpen, or Closed).
+func (q *ContainsPointQuery) ContainingShapeIds(p Point) []int32 {
+	var ids []int32
+	if !q.iter.LocatePoint(p) {
+		return ids
+	}
+
+	cell := q.iter.IndexCell()
+	for _, clipped := range cell.shapes {
+		if q.shapeContains(clipped, q.iter.Center(), p) {
+			ids = append(ids, clipped.shapeID)
+		}
+	}
+	return ids
+}
+
 // shapeContains reports whether the clippedShape from the iterator's center position contains
 // the given point.
 func (q *ContainsPointQuery) shapeContains(clipped *clippedShape, center, p Point) bool {
