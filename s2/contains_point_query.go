@@ -83,7 +83,7 @@ func (q *ContainsPointQuery) Contains(p Point) bool {
 // Contains reports whether any shape in the queries index contains the point p
 // under the queries vertex model (Open, SemiOpen, or Closed).
 func (q *ContainsPointQuery) ContainingShapeIds(p Point) []int32 {
-	var ids []int32
+	ids := make([]int32, 0)
 	if !q.iter.LocatePoint(p) {
 		return ids
 	}
