@@ -713,9 +713,16 @@ func (s *ShapeIndex) Remove(shape Shape) {
 	// The index updates itself lazily because it is much more efficient to
 	// process additions and removals in batches.
 	id := s.idForShape(shape)
+	if id < 0 {
+		return
+	}
 
-	// If the shape wasn't found, it's already been removed or was not in the index.
-	if s.shapes[id] == nil {
+	s.RemoveById(id)
+}
+
+func (s *ShapeIndex) RemoveById(id int32) {
+	shape, exist := s.shapes[id]
+	if !exist {
 		return
 	}
 
@@ -733,7 +740,7 @@ func (s *ShapeIndex) Remove(shape Shape) {
 		shapeID:               id,
 		hasInterior:           shape.HasInterior(),
 		containsTrackerOrigin: shape.ReferencePoint().Contained,
-		edges:                 make([]Edge, numEdges),
+		edges: make([]Edge, numEdges),
 	}
 
 	for e := 0; e < numEdges; e++ {
