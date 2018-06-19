@@ -716,7 +716,6 @@ func (s *ShapeIndex) Remove(shape Shape) {
 	if id < 0 {
 		return
 	}
-
 	s.RemoveById(id)
 }
 
