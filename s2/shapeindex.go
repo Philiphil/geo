@@ -189,6 +189,8 @@ const (
 	IteratorBegin ShapeIndexIteratorPos = iota
 	// IteratorEnd specifies the iterator should be positioned at the end of the index.
 	IteratorEnd
+	// IteratorUnpositioned specifies the iterator position is not changed.
+	IteratorUnpositioned
 )
 
 // ShapeIndexIterator is an iterator that provides low-level access to
@@ -221,6 +223,7 @@ func NewShapeIndexIterator(index *ShapeIndex, pos ...ShapeIndexIteratorPos) *Sha
 			s.Begin()
 		case IteratorEnd:
 			s.End()
+		case IteratorUnpositioned:
 		default:
 			panic("unknown ShapeIndexIteratorPos value")
 		}
@@ -935,7 +938,7 @@ func (s *ShapeIndex) shrinkToFit(pcell *PaddedCell, bound r2.Rect) CellID {
 	if !s.isFirstUpdate() && shrunkID != pcell.CellID() {
 		// Don't shrink any smaller than the existing index cells, since we need
 		// to combine the new edges with those cells.
-		iter := s.Iterator()
+		iter := NewShapeIndexIterator(s, IteratorUnpositioned)
 		if iter.LocateCellID(shrunkID) == Indexed {
 			shrunkID = iter.CellID()
 		}
@@ -989,7 +992,7 @@ func (s *ShapeIndex) updateEdges(pcell *PaddedCell, edges []*clippedEdge, t *tra
 		// There may be existing index cells contained inside pcell. If we
 		// encounter such a cell, we need to combine the edges being updated with
 		// the existing cell contents by absorbing the cell.
-		iter := s.Iterator()
+		iter := NewShapeIndexIterator(s, IteratorUnpositioned)
 		r := iter.LocateCellID(pcell.id)
 		if r == Disjoint {
 			disjointFromIndex = true
