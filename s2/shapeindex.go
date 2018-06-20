@@ -536,7 +536,14 @@ func (t *tracker) restoreStateBefore(limitShapeID int32) {
 
 // lowerBound returns the shapeID of the first entry x where x >= shapeID.
 func (t *tracker) lowerBound(shapeID int32) int32 {
-	panic("not implemented")
+	pos := 0
+	for _, id := range t.shapeIDs {
+		if id >= shapeID {
+			break
+		}
+		pos++
+	}
+	return int32(pos)
 }
 
 // removedShape represents a set of edges from the given shape that is queued for removal.
