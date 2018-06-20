@@ -1172,10 +1172,10 @@ func (s *ShapeIndex) makeIndexCell(p *PaddedCell, edges []*clippedEdge, t *track
 		eshapeID := int32(s.Len())
 		cshapeID := int32(eshapeID) // Sentinels
 
-		if eNext != len(edges) {
+		if eNext < len(edges) {
 			eshapeID = edges[eNext].faceEdge.shapeID
 		}
-		if cNextIdx != len(cshapeIDs) {
+		if cNextIdx < len(cshapeIDs) {
 			cshapeID = cshapeIDs[cNextIdx]
 		}
 		eBegin := eNext
