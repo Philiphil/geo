@@ -816,7 +816,7 @@ func (s *ShapeIndex) applyUpdatesInternal() {
 		s.removeShapeInternal(p, allEdges, t)
 	}
 
-	for id := s.pendingAdditionsPos; id < int32(len(s.shapes)); id++ {
+	for id := s.pendingAdditionsPos; id < s.nextID; id++ {
 		s.addShapeInternal(id, allEdges, t)
 	}
 
@@ -825,7 +825,7 @@ func (s *ShapeIndex) applyUpdatesInternal() {
 	}
 
 	s.pendingRemovals = s.pendingRemovals[:0]
-	s.pendingAdditionsPos = int32(len(s.shapes))
+	s.pendingAdditionsPos = s.nextID
 	// It is the caller's responsibility to update the index status.
 }
 
