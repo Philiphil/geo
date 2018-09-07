@@ -73,7 +73,8 @@ func (q *ContainsPointQuery) Contains(p Point) bool {
 
 	cell := q.iter.IndexCell()
 	for _, clipped := range cell.shapes {
-		if q.shapeContains(clipped, q.iter.Center(), p) {
+		if q.shapeContains(clipped, q.iter.Center(), p) &&
+			q.index.Shape(clipped.shapeID) != nil {
 			return true
 		}
 	}
@@ -90,7 +91,8 @@ func (q *ContainsPointQuery) ContainingShapeIds(p Point) []int32 {
 
 	cell := q.iter.IndexCell()
 	for _, clipped := range cell.shapes {
-		if q.shapeContains(clipped, q.iter.Center(), p) {
+		if q.shapeContains(clipped, q.iter.Center(), p) &&
+			q.index.Shape(clipped.shapeID) != nil {
 			ids = append(ids, clipped.shapeID)
 		}
 	}
@@ -176,3 +178,4 @@ func (q *ContainsPointQuery) ShapeContains(shape Shape, p Point) bool {
 // func (q *ContainsPointQuery) VisitContainingShapes(p Point, v shapeVisitorFunc) bool
 // type edgeVisitorFunc func(shape ShapeEdge) bool
 // func (q *ContainsPointQuery) VisitIncidentEdges(p Point, v edgeVisitorFunc) bool
+
