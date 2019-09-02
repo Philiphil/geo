@@ -556,6 +556,24 @@ func (p *Polyline) Interpolate(fraction float64) (Point, int) {
 	return (*p)[len(*p)-1], len(*p)
 }
 
+func (p *Polyline) UnInterpolate(target Point) (float64, int) {
+	point, vertex := p.Project(target)
+	if vertex == len(*p) {
+		return 1, vertex
+	}
+
+	var length, totalLength s1.Angle
+	for i := 1; i < len(*p); i++ {
+		totalLength += (*p)[i-1].Distance((*p)[i])
+		if i < vertex {
+			length = totalLength
+		} else if i == vertex {
+			length += point.Distance((*p)[i-1])
+		}
+	}
+	return float64(length / totalLength), vertex
+}
+
 // TODO(roberts): Differences from C++.
 // UnInterpolate
 // NearlyCoversPolyline
