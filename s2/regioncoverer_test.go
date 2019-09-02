@@ -123,7 +123,7 @@ func TestCovererRandomCaps(t *testing.T) {
 			rc.MaxLevel = int(rand.Int31n(maxLevel + 1))
 		}
 		rc.LevelMod = int(1 + rand.Int31n(3))
-		rc.MaxCells = int(skewedInt(10))
+		rc.MaxCells = skewedInt(10)
 
 		maxArea := math.Min(4*math.Pi, float64(3*rc.MaxCells+1)*AvgAreaMetric.Value(rc.MinLevel))
 		r := Region(randomCap(0.1*AvgAreaMetric.Value(maxLevel), maxArea))
@@ -147,3 +147,67 @@ func TestCovererRandomCaps(t *testing.T) {
 		checkCovering(t, rc, r, covering, false)
 	}
 }
+
+func TestRegionCovererInteriorCovering(t *testing.T) {
+	// We construct the region the following way. Start with Cell of level l.
+	// Remove from it one of its grandchildren (level l+2). If we then set
+	//   minLevel < l + 1
+	//   maxLevel > l + 2
+	//   maxCells = 3
+	// the best interior covering should contain 3 children of the initial cell,
+	// that were not effected by removal of a grandchild.
+	const level = 12
+	smallCell := cellIDFromPoint(randomPoint()).Parent(level + 2)
+	largeCell := smallCell.Parent(level)
+
+	smallCellUnion := CellUnion([]CellID{smallCell})
+	largeCellUnion := CellUnion([]CellID{largeCell})
+	diff := CellUnionFromDifference(largeCellUnion, smallCellUnion)
+
+	coverer := &RegionCoverer{
+		MaxCells: 3,
+		MaxLevel: level + 3,
+		MinLevel: level,
+	}
+
+	interior := coverer.InteriorCovering(&diff)
+	if len(interior) != 3 {
+		t.Fatalf("len(coverer.InteriorCovering(%v)) = %v, want 3", diff, len(interior))
+	}
+	for i := 0; i < 3; i++ {
+		if got, want := interior[i].Level(), level+1; got != want {
+			t.Errorf("interior[%d].Level() = %v, want %v", i, got, want)
+		}
+	}
+}
+
+func TestRegionCovererSimpleRegionCovering(t *testing.T) {
+	const maxLevel = maxLevel
+	for i := 0; i < 100; i++ {
+		level := randomUniformInt(maxLevel + 1)
+		maxArea := math.Min(4*math.Pi, 1000.0*AvgAreaMetric.Value(level))
+		c := randomCap(0.1*AvgAreaMetric.Value(maxLevel), maxArea)
+		covering := SimpleRegionCovering(c, c.Center(), level)
+		rc := &RegionCoverer{MaxLevel: level, MinLevel: level, MaxCells: math.MaxInt32, LevelMod: 1}
+		checkCovering(t, rc, c, covering, false)
+	}
+}
+
+// TODO(roberts): Differences from C++
+//  func TestRegionCovererAccuracy(t *testing.T) {
+//  func TestRegionCovererFastCoveringHugeFixedLevelCovering(t *testing.T) {
+//  func TestRegionCovererIsCanonicalInvalidS2CellId(t *testing.T) {
+//  func TestRegionCovererIsCanonicalUnsorted(t *testing.T) {
+//  func TestRegionCovererIsCanonicalOverlapping(t *testing.T) {
+//  func TestRegionCovererIsCanonicalMinLevel(t *testing.T) {
+//  func TestRegionCovererIsCanonicalMaxLevel(t *testing.T) {
+//  func TestRegionCovererIsCanonicalLevelMod(t *testing.T) {
+//  func TestRegionCovererIsCanonicalMaxCells(t *testing.T) {
+//  func TestRegionCovererIsCanonicalNormalized(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringUnsortedDuplicateCells(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringMaxLevelExceeded(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringWrongLevelMod(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringReplacedByParent(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringDenormalizedCellUnion(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringMaxCellsMergesSmallest(t *testing.T) {
+//  func TestRegionCovererCanonicalizeCoveringMaxCellsMergesRepeatedly(t *testing.T) {

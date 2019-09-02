@@ -87,6 +87,25 @@ func (p *Polyline) Equal(b *Polyline) bool {
 	return true
 }
 
+// ApproxEqual reports whether two polylines have the same number of vertices,
+// and corresponding vertex pairs are separated by no more the standard margin.
+func (p *Polyline) ApproxEqual(o *Polyline) bool {
+	return p.approxEqual(o, s1.Angle(epsilon))
+}
+
+// approxEqual reports whether two polylines are equal within the given margin.
+func (p *Polyline) approxEqual(o *Polyline, maxError s1.Angle) bool {
+	if len(*p) != len(*o) {
+		return false
+	}
+	for offset, val := range *p {
+		if !val.approxEqual((*o)[offset], maxError) {
+			return false
+		}
+	}
+	return true
+}
+
 // CapBound returns the bounding Cap for this Polyline.
 func (p *Polyline) CapBound() Cap {
 	return p.RectBound().CapBound()
@@ -164,11 +183,6 @@ func (p *Polyline) Edge(i int) Edge {
 	return Edge{(*p)[i], (*p)[i+1]}
 }
 
-// HasInterior returns false as Polylines are not closed.
-func (p *Polyline) HasInterior() bool {
-	return false
-}
-
 // ReferencePoint returns the default reference point with negative containment because Polylines are not closed.
 func (p *Polyline) ReferencePoint() ReferencePoint {
 	return OriginReferencePoint(false)
@@ -194,14 +208,18 @@ func (p *Polyline) ChainPosition(edgeID int) ChainPosition {
 	return ChainPosition{0, edgeID}
 }
 
-// dimension returns the dimension of the geometry represented by this Polyline.
-func (p *Polyline) dimension() dimension { return polylineGeometry }
+// Dimension returns the dimension of the geometry represented by this Polyline.
+func (p *Polyline) Dimension() int { return 1 }
 
 // IsEmpty reports whether this shape contains no points.
 func (p *Polyline) IsEmpty() bool { return defaultShapeIsEmpty(p) }
 
 // IsFull reports whether this shape contains all points on the sphere.
 func (p *Polyline) IsFull() bool { return defaultShapeIsFull(p) }
+
+func (p *Polyline) typeTag() typeTag { return typeTagPolyline }
+
+func (p *Polyline) privateInterface() {}
 
 // findEndVertex reports the maximal end index such that the line segment between
 // the start index and this one such that the line segment between these two
@@ -384,13 +402,165 @@ func (p *Polyline) decode(d decoder) {
 	}
 }
 
+// Project returns a point on the polyline that is closest to the given point,
+// and the index of the next vertex after the projected point. The
+// value of that index is always in the range [1, len(polyline)].
+// The polyline must not be empty.
+func (p *Polyline) Project(point Point) (Point, int) {
+	if len(*p) == 1 {
+		// If there is only one vertex, it is always closest to any given point.
+		return (*p)[0], 1
+	}
+
+	// Initial value larger than any possible distance on the unit sphere.
+	minDist := 10 * s1.Radian
+	minIndex := -1
+
+	// Find the line segment in the polyline that is closest to the point given.
+	for i := 1; i < len(*p); i++ {
+		if dist := DistanceFromSegment(point, (*p)[i-1], (*p)[i]); dist < minDist {
+			minDist = dist
+			minIndex = i
+		}
+	}
+
+	// Compute the point on the segment found that is closest to the point given.
+	closest := Project(point, (*p)[minIndex-1], (*p)[minIndex])
+	if closest == (*p)[minIndex] {
+		minIndex++
+	}
+
+	return closest, minIndex
+}
+
+// IsOnRight reports whether the point given is on the right hand side of the
+// polyline, using a naive definition of "right-hand-sideness" where the point
+// is on the RHS of the polyline iff the point is on the RHS of the line segment
+// in the polyline which it is closest to.
+// The polyline must have at least 2 vertices.
+func (p *Polyline) IsOnRight(point Point) bool {
+	// If the closest point C is an interior vertex of the polyline, let B and D
+	// be the previous and next vertices. The given point P is on the right of
+	// the polyline (locally) if B, P, D are ordered CCW around vertex C.
+	closest, next := p.Project(point)
+	if closest == (*p)[next-1] && next > 1 && next < len(*p) {
+		if point == (*p)[next-1] {
+			// Polyline vertices are not on the RHS.
+			return false
+		}
+		return OrderedCCW((*p)[next-2], point, (*p)[next], (*p)[next-1])
+	}
+	// Otherwise, the closest point C is incident to exactly one polyline edge.
+	// We test the point P against that edge.
+	if next == len(*p) {
+		next--
+	}
+	return Sign(point, (*p)[next], (*p)[next-1])
+}
+
+// Validate checks whether this is a valid polyline or not.
+func (p *Polyline) Validate() error {
+	// All vertices must be unit length.
+	for i, pt := range *p {
+		if !pt.IsUnit() {
+			return fmt.Errorf("vertex %d is not unit length", i)
+		}
+	}
+
+	// Adjacent vertices must not be identical or antipodal.
+	for i := 1; i < len(*p); i++ {
+		prev, cur := (*p)[i-1], (*p)[i]
+		if prev == cur {
+			return fmt.Errorf("vertices %d and %d are identical", i-1, i)
+		}
+		if prev == (Point{cur.Mul(-1)}) {
+			return fmt.Errorf("vertices %d and %d are antipodal", i-1, i)
+		}
+	}
+
+	return nil
+}
+
+// Intersects reports whether this polyline intersects the given polyline. If
+// the polylines share a vertex they are considered to be intersecting. When a
+// polyline endpoint is the only intersection with the other polyline, the
+// function may return true or false arbitrarily.
+//
+// The running time is quadratic in the number of vertices.
+func (p *Polyline) Intersects(o *Polyline) bool {
+	if len(*p) == 0 || len(*o) == 0 {
+		return false
+	}
+
+	if !p.RectBound().Intersects(o.RectBound()) {
+		return false
+	}
+
+	// TODO(roberts): Use ShapeIndex here.
+	for i := 1; i < len(*p); i++ {
+		crosser := NewChainEdgeCrosser((*p)[i-1], (*p)[i], (*o)[0])
+		for j := 1; j < len(*o); j++ {
+			if crosser.ChainCrossingSign((*o)[j]) != DoNotCross {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Interpolate returns the point whose distance from vertex 0 along the polyline is
+// the given fraction of the polyline's total length, and the index of
+// the next vertex after the interpolated point P. Fractions less than zero
+// or greater than one are clamped. The return value is unit length. The cost of
+// this function is currently linear in the number of vertices.
+//
+// This method allows the caller to easily construct a given suffix of the
+// polyline by concatenating P with the polyline vertices starting at that next
+// vertex. Note that P is guaranteed to be different than the point at the next
+// vertex, so this will never result in a duplicate vertex.
+//
+// The polyline must not be empty. Note that if fraction >= 1.0, then the next
+// vertex will be set to len(p) (indicating that no vertices from the polyline
+// need to be appended). The value of the next vertex is always between 1 and
+// len(p).
+//
+// This method can also be used to construct a prefix of the polyline, by
+// taking the polyline vertices up to next vertex-1 and appending the
+// returned point P if it is different from the last vertex (since in this
+// case there is no guarantee of distinctness).
+func (p *Polyline) Interpolate(fraction float64) (Point, int) {
+	// We intentionally let the (fraction >= 1) case fall through, since
+	// we need to handle it in the loop below in any case because of
+	// possible roundoff errors.
+	if fraction <= 0 {
+		return (*p)[0], 1
+	}
+	target := s1.Angle(fraction) * p.Length()
+
+	for i := 1; i < len(*p); i++ {
+		length := (*p)[i-1].Distance((*p)[i])
+		if target < length {
+			// This interpolates with respect to arc length rather than
+			// straight-line distance, and produces a unit-length result.
+			result := InterpolateAtDistance(target, (*p)[i-1], (*p)[i])
+
+			// It is possible that (result == vertex(i)) due to rounding errors.
+			if result == (*p)[i] {
+				return result, i + 1
+			}
+			return result, i
+		}
+		target -= length
+	}
+
+	return (*p)[len(*p)-1], len(*p)
+}
+
 // TODO(roberts): Differences from C++.
-// IsValid
-// Suffix
-// Interpolate/UnInterpolate
-// Project
-// IsPointOnRight
-// Intersects(Polyline)
-// Reverse
-// ApproxEqual
+// UnInterpolate
 // NearlyCoversPolyline
+// InitToSnapped
+// InitToSimplified
+// IsValid
+// SnapLevel
+// encode/decode compressed

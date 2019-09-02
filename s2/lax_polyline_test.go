@@ -38,12 +38,13 @@ func laxPolylineFromPolyline(p Polyline) *laxPolyline {
 
 func (l *laxPolyline) NumEdges() int                     { return maxInt(0, len(l.vertices)-1) }
 func (l *laxPolyline) Edge(e int) Edge                   { return Edge{l.vertices[e], l.vertices[e+1]} }
-func (l *laxPolyline) HasInterior() bool                 { return false }
 func (l *laxPolyline) ReferencePoint() ReferencePoint    { return OriginReferencePoint(false) }
 func (l *laxPolyline) NumChains() int                    { return minInt(1, l.NumEdges()) }
 func (l *laxPolyline) Chain(i int) Chain                 { return Chain{0, l.NumEdges()} }
 func (l *laxPolyline) ChainEdge(i, j int) Edge           { return Edge{l.vertices[j], l.vertices[j+1]} }
 func (l *laxPolyline) ChainPosition(e int) ChainPosition { return ChainPosition{0, e} }
-func (l *laxPolyline) dimension() dimension              { return polylineGeometry }
+func (l *laxPolyline) Dimension() int                    { return 1 }
 func (l *laxPolyline) IsEmpty() bool                     { return defaultShapeIsEmpty(l) }
 func (l *laxPolyline) IsFull() bool                      { return defaultShapeIsFull(l) }
+func (l *laxPolyline) typeTag() typeTag                  { return typeTagLaxPolyline }
+func (l *laxPolyline) privateInterface()                 {}

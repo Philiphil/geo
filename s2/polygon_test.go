@@ -170,8 +170,8 @@ func TestPolygonEmpty(t *testing.T) {
 	if got, want := shape.NumChains(), 0; got != want {
 		t.Errorf("shape.NumChains() = %v, want %v", got, want)
 	}
-	if got, want := shape.dimension(), polygonGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
+	if got, want := shape.Dimension(), 2; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if !shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = false, want true")
@@ -199,8 +199,8 @@ func TestPolygonFull(t *testing.T) {
 	if got, want := shape.Chain(0).Length, 0; got != want {
 		t.Errorf("fullPolygon.Chain(0).Length = %d, want %d", got, want)
 	}
-	if got, want := shape.dimension(), polygonGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
+	if got, want := shape.Dimension(), 2; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = true, want false")
@@ -210,6 +210,24 @@ func TestPolygonFull(t *testing.T) {
 	}
 	if !shape.ReferencePoint().Contained {
 		t.Errorf("shape.ReferencePoint().Contained = false, want true")
+	}
+}
+
+func TestPolygonInitLoopPropertiesGetsRightBounds(t *testing.T) {
+	// Before the change to initLoopProperties to start the bounds as an
+	// EmptyRect instead of it default to the zero rect, the bounds
+	// computations failed. Lo was set to min (0, 12.55) and Hi was set to
+	// max (0, -70.02).  So this poly would have a bounds of
+	//   Lo: [0, -70.05],     Hi: [12.58, 0]]      instead of:
+	//   Lo: [12.55, -70.05], Hi: [12.58, -70.02]]
+
+	p := PolygonFromLoops([]*Loop{
+		makeLoop("12.55:-70.05, 12.55:-70.02, 12.58:-70.02, 12.58:-70.05"),
+		makeLoop("12.56:-70.04, 12.56:-70.03, 12.58:-70.03, 12.58:-70.04"),
+	})
+	want := rectFromDegrees(12.55, -70.05, 12.58, -70.02)
+	if got := p.RectBound(); !rectsApproxEqual(got, want, 1e-6, 1e-6) {
+		t.Errorf("%v.RectBound() = %v, want %v", p, got, want)
 	}
 }
 
@@ -255,11 +273,8 @@ func TestPolygonShape(t *testing.T) {
 				edgeID++
 			}
 		}
-		if got, want := shape.dimension(), polygonGeometry; got != want {
-			t.Errorf("shape.dimension() = %v, want %v", got, want)
-		}
-		if !shape.HasInterior() {
-			t.Errorf("shape.HasInterior() = false, want true")
+		if got, want := shape.Dimension(), 2; got != want {
+			t.Errorf("shape.Dimension() = %v, want %v", got, want)
 		}
 		if shape.IsEmpty() {
 			t.Errorf("shape.IsEmpty() = true, want false")
@@ -333,8 +348,7 @@ func checkPolygonInvalid(t *testing.T, label string, loops []*Loop, initOriented
 	shuffleLoops(loops)
 	var polygon *Polygon
 	if initOriented {
-		// TODO(roberts): Uncomment when oriented loops support is added.
-		//polygon = PolygonFromOrientedLoops(loops)
+		polygon = PolygonFromOrientedLoops(loops)
 	} else {
 		polygon = PolygonFromLoops(loops)
 	}
@@ -348,7 +362,7 @@ func checkPolygonInvalid(t *testing.T, label string, loops []*Loop, initOriented
 	}
 }
 
-func TestPolygonUnitializedIsValid(t *testing.T) {
+func TestPolygonUninitializedIsValid(t *testing.T) {
 	p := &Polygon{}
 	if err := p.Validate(); err != nil {
 		t.Errorf("an uninitialized polygon failed validation: %v", err)
@@ -388,7 +402,7 @@ func TestPolygonIsValidLoopNestingInvalid(t *testing.T) {
 //   TestFuzzTest
 
 func TestPolygonParent(t *testing.T) {
-	p1 := PolygonFromLoops([]*Loop{&Loop{}})
+	p1 := PolygonFromLoops([]*Loop{{}})
 	tests := []struct {
 		p    *Polygon
 		have int
@@ -410,7 +424,7 @@ func TestPolygonParent(t *testing.T) {
 }
 
 func TestPolygonLastDescendant(t *testing.T) {
-	p1 := PolygonFromLoops([]*Loop{&Loop{}})
+	p1 := PolygonFromLoops([]*Loop{{}})
 
 	tests := []struct {
 		p    *Polygon

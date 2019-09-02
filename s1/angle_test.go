@@ -113,6 +113,7 @@ func TestNormalizeCorrectlyCanonicalizesAngles(t *testing.T) {
 		in, want float64 // both in degrees
 	}{
 		{360, 0},
+		{-90, -90},
 		{-180, 180},
 		{180, 180},
 		{540, 180},
@@ -165,3 +166,6 @@ func TestDegreesVsRadians(t *testing.T) {
 		t.Errorf("Angle(60).Degrees() == 60, but should not (%f vs %f)", got, 60.0)
 	}
 }
+
+// TODO(roberts): Differences from C++
+//   Benchmarking code.

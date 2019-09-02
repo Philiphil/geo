@@ -19,8 +19,8 @@ import (
 	"testing"
 )
 
-func TestPointVectorShapeEmpty(t *testing.T) {
-	var shape pointVectorShape
+func TestPointVectorEmpty(t *testing.T) {
+	var shape PointVector
 
 	if got, want := shape.NumEdges(), 0; got != want {
 		t.Errorf("shape.NumEdges() = %v, want %v", got, want)
@@ -28,8 +28,8 @@ func TestPointVectorShapeEmpty(t *testing.T) {
 	if got, want := shape.NumChains(), 0; got != want {
 		t.Errorf("shape.NumChains() = %v, want %v", got, want)
 	}
-	if got, want := shape.dimension(), pointGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
+	if got, want := shape.Dimension(), 0; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if !shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = false, want true")
@@ -42,26 +42,26 @@ func TestPointVectorShapeEmpty(t *testing.T) {
 	}
 }
 
-func TestPointVectorShapeBasics(t *testing.T) {
+func TestPointVectorBasics(t *testing.T) {
 	const seed = 8675309
 	rand.Seed(seed)
 
 	const numPoints = 100
-	var p pointVectorShape = make([]Point, numPoints)
+	var p PointVector = make([]Point, numPoints)
 
 	for i := 0; i < numPoints; i++ {
 		p[i] = randomPoint()
 	}
 
-	shape := Shape(p)
+	shape := Shape(&p)
 	if got, want := shape.NumEdges(), numPoints; got != want {
 		t.Errorf("shape.NumEdges() = %v, want %v", got, want)
 	}
 	if got, want := shape.NumChains(), numPoints; got != want {
 		t.Errorf("shape.NumChains() = %v, want %v", got, want)
 	}
-	if got, want := shape.dimension(), pointGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
+	if got, want := shape.Dimension(), 0; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = true, want false")

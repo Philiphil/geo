@@ -43,9 +43,10 @@ func TestPolylineBasics(t *testing.T) {
 	}
 
 	semiEquator := PolylineFromLatLngs(latlngs)
-	//if got, want := semiEquator.Interpolate(0.5), Point{r3.Vector{0, 1, 0}}; !got.ApproxEqual(want) {
-	//	t.Errorf("semiEquator.Interpolate(0.5) = %v, want %v", got, want)
-	//}
+	want := PointFromCoords(0, 1, 0)
+	if got, _ := semiEquator.Interpolate(0.5); !got.ApproxEqual(want) {
+		t.Errorf("semiEquator.Interpolate(0.5) = %v, want %v", got, want)
+	}
 	semiEquator.Reverse()
 	if got, want := (*semiEquator)[2], (Point{r3.Vector{1, 0, 0}}); !got.ApproxEqual(want) {
 		t.Errorf("semiEquator[2] = %v, want %v", got, want)
@@ -74,14 +75,11 @@ func TestPolylineShape(t *testing.T) {
 	if want := PointFromLatLng(LatLngFromDegrees(2, 1)); !e.V1.ApproxEqual(want) {
 		t.Errorf("%v.Edge(%d) point B = %v  want %v", shape, 2, e.V1, want)
 	}
-	if shape.HasInterior() {
-		t.Errorf("polylines should not have an interior")
-	}
 	if shape.ReferencePoint().Contained {
 		t.Errorf("polylines should not contain their reference points")
 	}
-	if shape.dimension() != polylineGeometry {
-		t.Errorf("polylines should have PolylineGeometry")
+	if got, want := shape.Dimension(), 1; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 }
 
@@ -92,9 +90,6 @@ func TestPolylineEmpty(t *testing.T) {
 	}
 	if got, want := shape.NumChains(), 0; got != want {
 		t.Errorf("%v.NumChains() = %d, want %d", shape, got, want)
-	}
-	if shape.HasInterior() {
-		t.Errorf("polylines should not have an interior")
 	}
 	if !shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = false, want true")
@@ -290,3 +285,319 @@ func TestPolylineSubsample(t *testing.T) {
 		}
 	}
 }
+
+func TestProject(t *testing.T) {
+	latlngs := []LatLng{
+		LatLngFromDegrees(0, 0),
+		LatLngFromDegrees(0, 1),
+		LatLngFromDegrees(0, 2),
+		LatLngFromDegrees(1, 2),
+	}
+	line := PolylineFromLatLngs(latlngs)
+	tests := []struct {
+		haveLatLng     LatLng
+		wantProjection LatLng
+		wantNext       int
+	}{
+		{LatLngFromDegrees(0.5, -0.5), LatLngFromDegrees(0, 0), 1},
+		{LatLngFromDegrees(0.5, 0.5), LatLngFromDegrees(0, 0.5), 1},
+		{LatLngFromDegrees(0.5, 1), LatLngFromDegrees(0, 1), 2},
+		{LatLngFromDegrees(-0.5, 2.5), LatLngFromDegrees(0, 2), 3},
+		{LatLngFromDegrees(2, 2), LatLngFromDegrees(1, 2), 4},
+		{LatLngFromDegrees(-50, 0.5), LatLngFromDegrees(0, 0.5), 1},
+	}
+	for _, test := range tests {
+		projection, next := line.Project(PointFromLatLng(test.haveLatLng))
+		if !PointFromLatLng(test.wantProjection).ApproxEqual(projection) {
+			t.Errorf("line.Project(%v) = %v, want %v", test.haveLatLng, projection, test.wantProjection)
+		}
+		if next != test.wantNext {
+			t.Errorf("line.Project(%v) = %v, want %v", test.haveLatLng, next, test.wantNext)
+		}
+	}
+}
+
+func TestIsOnRight(t *testing.T) {
+	latlngs := []LatLng{
+		LatLngFromDegrees(0, 0),
+		LatLngFromDegrees(0, 1),
+		LatLngFromDegrees(0, 2),
+		LatLngFromDegrees(1, 2),
+	}
+	line1 := PolylineFromLatLngs(latlngs)
+	latlngs = []LatLng{
+		LatLngFromDegrees(0, 0),
+		LatLngFromDegrees(0, 1),
+		LatLngFromDegrees(-1, 0),
+	}
+	line2 := PolylineFromLatLngs(latlngs)
+	tests := []struct {
+		line        *Polyline
+		haveLatLng  LatLng
+		wantOnRight bool
+	}{
+		{line1, LatLngFromDegrees(-0.5, 0.5), true},
+		{line1, LatLngFromDegrees(0.5, -0.5), false},
+		{line1, LatLngFromDegrees(0.5, 0.5), false},
+		{line1, LatLngFromDegrees(0.5, 1.0), false},
+		{line1, LatLngFromDegrees(-0.5, 2.5), true},
+		{line1, LatLngFromDegrees(1.5, 2.5), true},
+		// Explicitly test the case where the closest point is an interior vertex.
+		// The points are chosen such that they are on different sides of the two
+		// edges that the interior vertex is on.
+		{line2, LatLngFromDegrees(-0.5, 5.0), false},
+		{line2, LatLngFromDegrees(5.5, 5.0), false},
+	}
+	for _, test := range tests {
+		onRight := test.line.IsOnRight(PointFromLatLng(test.haveLatLng))
+		if onRight != test.wantOnRight {
+			t.Errorf("line.IsOnRight(%v) = %v, want %v", test.haveLatLng, onRight, test.wantOnRight)
+		}
+	}
+}
+
+func TestPolylineValidate(t *testing.T) {
+	p := makePolyline("0:0, 2:1, 0:2, 2:3, 0:4, 2:5, 0:6")
+	if p.Validate() != nil {
+		t.Errorf("valid polygon should Validate")
+	}
+
+	p1 := Polyline([]Point{
+		PointFromCoords(0, 1, 0),
+		{r3.Vector{10, 3, 7}},
+		PointFromCoords(0, 0, 1),
+	})
+
+	if err := p1.Validate(); err == nil {
+		t.Errorf("polyline with non-normalized points shouldn't validate")
+	}
+
+	// adjacent equal vertices
+	p2 := Polyline([]Point{
+		PointFromCoords(0, 1, 0),
+		PointFromCoords(0, 0, 1),
+		PointFromCoords(0, 0, 1),
+		PointFromCoords(1, 0, 0),
+	})
+
+	if err := p2.Validate(); err == nil {
+		t.Errorf("polyline with repeated vertices shouldn't validate")
+	}
+
+	pt := PointFromCoords(1, 1, 0)
+	antiPt := Point{pt.Mul(-1)}
+
+	// non-adjacent antipodal points.
+	p3 := Polyline([]Point{
+		PointFromCoords(0, 1, 0),
+		pt,
+		PointFromCoords(0, 0, 1),
+		antiPt,
+	})
+
+	if err := p3.Validate(); err != nil {
+		t.Errorf("polyline with non-adjacent antipodal points should validate")
+	}
+
+	// non-adjacent antipodal points.
+	p4 := Polyline([]Point{
+		PointFromCoords(0, 1, 0),
+		PointFromCoords(0, 0, 1),
+		pt,
+		antiPt,
+	})
+
+	if err := p4.Validate(); err == nil {
+		t.Errorf("polyline with antipodal adjacent points shouldn't validate")
+	}
+}
+
+func TestPolylineIntersects(t *testing.T) {
+	// PolylineInterectsEmpty
+	empty := Polyline{}
+	line := makePolyline("1:1, 4:4")
+	if empty.Intersects(line) {
+		t.Errorf("%v.Intersects(%v) = true, want false", empty, line)
+	}
+
+	// PolylineIntersectsOnePointPolyline
+	line1 := makePolyline("1:1, 4:4")
+	line2 := makePolyline("1:1")
+	if line1.Intersects(line2) {
+		t.Errorf("%v.Intersects(%v) = true, want false", line1, line2)
+	}
+
+	// PolylineIntersects
+	line3 := makePolyline("1:1, 4:4")
+	smallCrossing := makePolyline("1:2, 2:1")
+	smallNoncrossing := makePolyline("1:2, 2:3")
+	bigCrossing := makePolyline("1:2, 2:3, 4:3")
+	if !line3.Intersects(smallCrossing) {
+		t.Errorf("%v.Intersects(%v) = false, want true", line3, smallCrossing)
+	}
+	if line3.Intersects(smallNoncrossing) {
+		t.Errorf("%v.Intersects(%v) = true, want false", line3, smallNoncrossing)
+	}
+	if !line3.Intersects(bigCrossing) {
+		t.Errorf("%v.Intersects(%v) = false, want true", line3, bigCrossing)
+	}
+
+	// PolylineIntersectsAtVertex
+	line4 := makePolyline("1:1, 4:4, 4:6")
+	line5 := makePolyline("1:1, 1:2")
+	line6 := makePolyline("5:1, 4:4, 2:2")
+	if !line4.Intersects(line5) {
+		t.Errorf("%v.Intersects(%v) = false, want true", line4, line5)
+	}
+	if !line4.Intersects(line6) {
+		t.Errorf("%v.Intersects(%v) = false, want true", line4, line6)
+	}
+
+	// TestPolylineIntersectsVertexOnEdge
+	horizontalLeftToRight := makePolyline("0:1, 0:3")
+	verticalBottomToTop := makePolyline("-1:2, 0:2, 1:2")
+	horizontalRightToLeft := makePolyline("0:3, 0:1")
+	verticalTopToBottom := makePolyline("1:2, 0:2, -1:2")
+	if !horizontalLeftToRight.Intersects(verticalBottomToTop) {
+		t.Errorf("%v.Intersects(%v) = false, want true", horizontalLeftToRight, verticalBottomToTop)
+	}
+	if !horizontalLeftToRight.Intersects(verticalTopToBottom) {
+		t.Errorf("%v.Intersects(%v) = false, want true", horizontalLeftToRight, verticalTopToBottom)
+	}
+	if !horizontalRightToLeft.Intersects(verticalBottomToTop) {
+		t.Errorf("%v.Intersects(%v) = false, want true", horizontalRightToLeft, verticalBottomToTop)
+	}
+	if !horizontalRightToLeft.Intersects(verticalTopToBottom) {
+		t.Errorf("%v.Intersects(%v) = false, want true", horizontalRightToLeft, verticalTopToBottom)
+	}
+}
+
+func TestPolylineApproxEqual(t *testing.T) {
+	degree := s1.Angle(1) * s1.Degree
+
+	tests := []struct {
+		a, b     string
+		maxError s1.Angle
+		want     bool
+	}{
+		{
+			// Close lines, differences within maxError.
+			a:        "0:0, 0:10, 5:5",
+			b:        "0:0.1, -0.1:9.9, 5:5.2",
+			maxError: 0.5 * degree,
+			want:     true,
+		},
+		{
+			// Close lines, differences outside maxError.
+			a:        "0:0, 0:10, 5:5",
+			b:        "0:0.1, -0.1:9.9, 5:5.2",
+			maxError: 0.01 * degree,
+			want:     false,
+		},
+		{
+			// Same line, but different number of vertices.
+			a:        "0:0, 0:10, 0:20",
+			b:        "0:0, 0:20",
+			maxError: 0.1 * degree,
+			want:     false,
+		},
+		{
+			// Same vertices, in different order.
+			a:        "0:0, 5:5, 0:10",
+			b:        "5:5, 0:10, 0:0",
+			maxError: 0.1 * degree,
+			want:     false,
+		},
+	}
+	for _, test := range tests {
+		a := makePolyline(test.a)
+		b := makePolyline(test.b)
+		if got := a.approxEqual(b, test.maxError); got != test.want {
+			t.Errorf("%v.approxEqual(%v, %v) = %v, want %v", a, b, test.maxError, got, test.want)
+		}
+	}
+}
+
+func TestPolylineInterpolate(t *testing.T) {
+	vertices := []Point{PointFromCoords(1, 0, 0),
+		PointFromCoords(0, 1, 0),
+		PointFromCoords(0, 1, 1),
+		PointFromCoords(0, 0, 1),
+	}
+	line := Polyline(vertices)
+
+	want := vertices[0]
+	point, next := line.Interpolate(-0.1)
+	if point != vertices[0] {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, -0.1, point, vertices[0])
+	}
+	if next != 1 {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, -0.1, next, 1)
+	}
+
+	want = PointFromCoords(1, math.Tan(0.2*math.Pi/2.0), 0)
+	if got, _ := line.Interpolate(0.1); !got.ApproxEqual(want) {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 0.1, got, want)
+	}
+
+	want = PointFromCoords(1, 1, 0)
+	if got, _ := line.Interpolate(0.25); !got.ApproxEqual(want) {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 0.25, got, want)
+	}
+
+	want = vertices[1]
+	if got, _ := line.Interpolate(0.5); got != want {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 0.5, got, want)
+	}
+
+	want = vertices[2]
+	point, next = line.Interpolate(0.75)
+	if !point.ApproxEqual(want) {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 0.75, point, want)
+	}
+	if next != 3 {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 0.75, next, 3)
+	}
+
+	point, next = line.Interpolate(1.1)
+	if point != vertices[3] {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 1.1, point, vertices[3])
+	}
+	if next != 4 {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", line, 1.1, next, 4)
+	}
+
+	// Check the case where the interpolation fraction is so close to 1 that
+	// the interpolated point is identical to the last vertex.
+	vertices2 := []Point{PointFromCoords(1, 1, 1),
+		PointFromCoords(1, 1, 1+1e-15),
+		PointFromCoords(1, 1, 1+2e-15),
+	}
+	shortLine := Polyline(vertices2)
+
+	point, next = shortLine.Interpolate(1.0 - 2e-16)
+	if point != vertices2[2] {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", shortLine, 1.0-2e-16, point, vertices2[2])
+	}
+	if next != 3 {
+		t.Errorf("%v.Interpolate(%v) = %v, want %v", shortLine, 1.0-2e-16, next, 3)
+	}
+}
+
+// TODO(roberts): Test differences from C++:
+// UnInterpolate
+//
+// PolylineCoveringTest
+//    PolylineOverlapsSelf
+//    PolylineDoesNotOverlapReverse
+//    PolylineOverlapsEquivalent
+//    ShortCoveredByLong
+//    PartialOverlapOnly
+//    ShortBacktracking
+//    LongBacktracking
+//    IsResilientToDuplicatePoints
+//    CanChooseBetweenTwoPotentialStartingPoints
+//    StraightAndWigglyPolylinesCoverEachOther
+//    MatchStartsAtLastVertex
+//    MatchStartsAtDuplicatedLastVertex
+//    EmptyPolylines

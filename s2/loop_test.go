@@ -173,11 +173,8 @@ func TestLoopEmptyLoop(t *testing.T) {
 	if got, want := shape.NumChains(), 0; got != want {
 		t.Errorf("shape.NumChains() = %v, want %v", got, want)
 	}
-	if got, want := shape.dimension(), polygonGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
-	}
-	if !shape.HasInterior() {
-		t.Errorf("shape.HasInterior() = false, want true")
+	if got, want := shape.Dimension(), 2; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if !shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = false, want true")
@@ -202,8 +199,8 @@ func TestLoopFullLoop(t *testing.T) {
 	if got, want := shape.NumChains(), 1; got != want {
 		t.Errorf("shape.NumChains() = %v, want %v", got, want)
 	}
-	if got, want := shape.dimension(), polygonGeometry; got != want {
-		t.Errorf("shape.dimension() = %v, want %v", got, want)
+	if got, want := shape.Dimension(), 2; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = true, want false")
@@ -242,11 +239,8 @@ func TestLoopBasic(t *testing.T) {
 	if want := PointFromLatLng(LatLngFromDegrees(0, 0)); !e.V1.ApproxEqual(want) {
 		t.Errorf("shape.Edge(2) end B = %v, want %v", e.V1, want)
 	}
-	if got := shape.dimension(); got != polygonGeometry {
-		t.Errorf("shape.dimension() = %d, want %v", got, polygonGeometry)
-	}
-	if !shape.HasInterior() {
-		t.Errorf("shape.HasInterior() = false, want true")
+	if got, want := shape.Dimension(), 2; got != want {
+		t.Errorf("shape.Dimension() = %v, want %v", got, want)
 	}
 	if shape.IsEmpty() {
 		t.Errorf("shape.IsEmpty() = true, want false")
@@ -288,6 +282,8 @@ func TestLoopHoleAndSign(t *testing.T) {
 }
 
 func TestLoopRectBound(t *testing.T) {
+	rectError := NewRectBounder().maxErrorForTests()
+
 	if !EmptyLoop().RectBound().IsEmpty() {
 		t.Errorf("empty loop's RectBound should be empty")
 	}
@@ -306,17 +302,17 @@ func TestLoopRectBound(t *testing.T) {
 	if !smallNECW.RectBound().IsFull() {
 		t.Errorf("small northeast clockwise loop's RectBound should be full")
 	}
-	if got, want := arctic80.RectBound(), rectFromDegrees(80, -180, 90, 180); !rectsApproxEqual(got, want, rectErrorLat, rectErrorLng) {
+	if got, want := arctic80.RectBound(), rectFromDegrees(80, -180, 90, 180); !rectsApproxEqual(got, want, rectError.Lat.Radians(), rectError.Lng.Radians()) {
 		t.Errorf("arctic 80 loop's RectBound (%v) should be %v", got, want)
 	}
-	if got, want := antarctic80.RectBound(), rectFromDegrees(-90, -180, -80, 180); !rectsApproxEqual(got, want, rectErrorLat, rectErrorLng) {
+	if got, want := antarctic80.RectBound(), rectFromDegrees(-90, -180, -80, 180); !rectsApproxEqual(got, want, rectError.Lat.Radians(), rectError.Lng.Radians()) {
 		t.Errorf("antarctic 80 loop's RectBound (%v) should be %v", got, want)
 	}
+
 	if !southHemi.RectBound().Lng.IsFull() {
 		t.Errorf("south hemi loop's RectBound should have a full longitude range")
 	}
-	got, want := southHemi.RectBound().Lat, r1.Interval{-math.Pi / 2, 0}
-	if !got.ApproxEqual(want) {
+	if got, want := southHemi.RectBound().Lat, (r1.Interval{-math.Pi / 2, 0}); !r1IntervalsApproxEqual(got, want, rectError.Lat.Radians()) {
 		t.Errorf("south hemi loop's RectBound latitude interval (%v) should be %v", got, want)
 	}
 
@@ -325,7 +321,7 @@ func TestLoopRectBound(t *testing.T) {
 	arctic80Inv.Invert()
 	// The highest latitude of each edge is attained at its midpoint.
 	mid := Point{arctic80Inv.vertices[0].Vector.Add(arctic80Inv.vertices[1].Vector).Mul(.5)}
-	if got, want := arctic80Inv.RectBound().Lat.Hi, float64(LatLngFromPoint(mid).Lat); math.Abs(got-want) > 10*dblEpsilon {
+	if got, want := arctic80Inv.RectBound().Lat.Hi, float64(LatLngFromPoint(mid).Lat); !float64Near(got, want, 10*dblEpsilon) {
 		t.Errorf("arctic 80 inverse loop's RectBound should have a latutude hi of %v, got %v", got, want)
 	}
 }
@@ -625,7 +621,7 @@ func TestLoopFromCell(t *testing.T) {
 	// Demonstrates the reason for this test; the cell bounds are more
 	// conservative than the resulting loop bounds.
 	if loopFromCell.RectBound().Contains(cell.RectBound()) {
-		t.Errorf("loopFromCell's RectBound countains the original cells RectBound, but should not")
+		t.Errorf("loopFromCell's RectBound contains the original cells RectBound, but should not")
 	}
 }
 
@@ -651,6 +647,71 @@ func cloneLoop(l *Loop) *Loop {
 	c.index.Add(c)
 
 	return c
+}
+
+func TestLoopEqual(t *testing.T) {
+	tests := []struct {
+		a, b *Loop
+		want bool
+	}{
+		{
+			a:    EmptyLoop(),
+			b:    EmptyLoop(),
+			want: true,
+		},
+		{
+			a:    FullLoop(),
+			b:    FullLoop(),
+			want: true,
+		},
+		{
+			a:    EmptyLoop(),
+			b:    FullLoop(),
+			want: false,
+		},
+		{
+			a:    candyCane,
+			b:    candyCane,
+			want: true,
+		},
+		{
+			a:    candyCane,
+			b:    rotate(candyCane),
+			want: false,
+		},
+		{
+			a:    candyCane,
+			b:    rotate(rotate(candyCane)),
+			want: false,
+		},
+		{
+			a:    candyCane,
+			b:    rotate(rotate(rotate(candyCane))),
+			want: false,
+		},
+		{
+			a:    candyCane,
+			b:    rotate(rotate(rotate(rotate(candyCane)))),
+			want: false,
+		},
+		{
+			a:    candyCane,
+			b:    rotate(rotate(rotate(rotate(rotate(candyCane))))),
+			want: false,
+		},
+		{
+			// candyCane has 6 points, so 6 rotates should line up again.
+			a:    candyCane,
+			b:    rotate(rotate(rotate(rotate(rotate(rotate(candyCane)))))),
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		if got := test.a.Equal(test.b); got != test.want {
+			t.Errorf("%v.Equal(%v) = %t, want %t", test.a, test.b, got, test.want)
+		}
+	}
 }
 
 func TestLoopContainsMatchesCrossingSign(t *testing.T) {
@@ -1386,16 +1447,15 @@ func testLoopOneCoveringPair(t *testing.T, a, b *Loop) {
 	if got, want := b.Contains(a), b.IsFull(); got != want {
 		t.Errorf("%v.Contains(%v) = %v, want %v", b, a, got, want)
 	}
-	// TODO(roberts): Uncomment as these functions get completed.
-	// a1 := cloneLoop(a)
-	// a1.Invert()
-	// complementary := a1.BoundaryEqual(b)
-	// if got, want := a.Intersects(b), !complementary; got != want {
-	// 	t.Errorf("%v.Intersects(%v) = %v, want %v", a, b, got, want)
-	// }
-	// if got, want := b.Intersects(a), !complementary; got != want {
-	// 	t.Errorf("%v.Intersects(%v) = %v, want %v", b, a, got, want)
-	// }
+	a1 := cloneLoop(a)
+	a1.Invert()
+	complementary := a1.BoundaryEqual(b)
+	if got, want := a.Intersects(b), !complementary; got != want {
+		t.Errorf("%v.Intersects(%v) = %v, want %v", a, b, got, want)
+	}
+	if got, want := b.Intersects(a), !complementary; got != want {
+		t.Errorf("%v.Intersects(%v) = %v, want %v", b, a, got, want)
+	}
 }
 
 // Given loops A and B such that both A and its complement intersect both B
@@ -1453,7 +1513,6 @@ func TestLoopTurningAngle(t *testing.T) {
 		}
 	}
 
-	// TODO(roberts): Uncomment once Area is implemented.
 	// Build a narrow spiral loop starting at the north pole. This is designed
 	// to test that the error in TurningAngle is linear in the number of
 	// vertices even when the partial sum of the turning angles gets very large.
@@ -1691,18 +1750,18 @@ func TestLoopValidateDetectsInvalidLoops(t *testing.T) {
 			// Ensure points are not normalized.
 			msg: "loop with non-normalized vertices",
 			points: []Point{
-				Point{r3.Vector{2, 0, 0}},
-				Point{r3.Vector{0, 1, 0}},
-				Point{r3.Vector{0, 0, 1}},
+				{r3.Vector{2, 0, 0}},
+				{r3.Vector{0, 1, 0}},
+				{r3.Vector{0, 0, 1}},
 			},
 		},
 		{
 			// Adjacent antipodal vertices
 			msg: "loop with antipodal points",
 			points: []Point{
-				Point{r3.Vector{1, 0, 0}},
-				Point{r3.Vector{-1, 0, 0}},
-				Point{r3.Vector{0, 0, 1}},
+				{r3.Vector{1, 0, 0}},
+				{r3.Vector{-1, 0, 0}},
+				{r3.Vector{0, 0, 1}},
 			},
 		},
 	}

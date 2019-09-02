@@ -34,7 +34,8 @@ func DistanceFromSegment(x, a, b Point) s1.Angle {
 }
 
 // IsDistanceLess reports whether the distance from X to the edge AB is less
-// than limit. This method is faster than DistanceFromSegment(). If you want to
+// than limit. (For less than or equal to, specify limit.Successor()).
+// This method is faster than DistanceFromSegment(). If you want to
 // compare against a fixed s1.Angle, you should convert it to an s1.ChordAngle
 // once and save the value, since this conversion is relatively expensive.
 func IsDistanceLess(x, a, b Point, limit s1.ChordAngle) bool {
@@ -71,9 +72,9 @@ func UpdateMaxDistance(x, a, b Point, maxDist s1.ChordAngle) (s1.ChordAngle, boo
 	return maxDist, false
 }
 
-// IsInteriorDistanceLess reports whether the minimum distance from X to the
-// edge AB is attained at an interior point of AB (i.e., not an endpoint), and
-// that distance is less than limit.
+// IsInteriorDistanceLess reports whether the minimum distance from X to the edge
+// AB is attained at an interior point of AB (i.e., not an endpoint), and that
+// distance is less than limit. (Specify limit.Successor() for less than or equal to).
 func IsInteriorDistanceLess(x, a, b Point, limit s1.ChordAngle) bool {
 	_, less := UpdateMinInteriorDistance(x, a, b, limit)
 	return less
@@ -193,7 +194,7 @@ func minUpdateInteriorDistanceMaxError(dist s1.ChordAngle) float64 {
 	// This bound includes all source of error, assuming that the input points
 	// are normalized. a and b are components of chord length that are
 	// perpendicular and parallel to a plane containing the edge respectively.
-	b := math.Min(1.0, 0.5*float64(dist)*float64(dist))
+	b := math.Min(1.0, 0.5*float64(dist))
 	a := math.Sqrt(b * (2 - b))
 	return ((2.5+2*math.Sqrt(3)+8.5*a)*a +
 		(2+2*math.Sqrt(3)/3+6.5*(1-b))*b +
@@ -240,10 +241,33 @@ func interiorDist(x, a, b Point, minDist s1.ChordAngle, alwaysUpdate bool) (s1.C
 	// interior case then both of these angles must be acute.
 	//
 	// We check this by computing the squared edge lengths of the planar
-	// triangle ABX, and testing acuteness using the law of cosines:
+	// triangle ABX, and testing whether angles XAB and XBA are both acute using
+	// the law of cosines:
 	//
-	//   max(XA^2, XB^2) < min(XA^2, XB^2) + AB^2
-	if math.Max(xa2, xb2) >= math.Min(xa2, xb2)+(a.Sub(b.Vector)).Norm2() {
+	//            | XA^2 - XB^2 | < AB^2      (*)
+	//
+	// This test must be done conservatively (taking numerical errors into
+	// account) since otherwise we might miss a situation where the true minimum
+	// distance is achieved by a point on the edge interior.
+	//
+	// There are two sources of error in the expression above (*).  The first is
+	// that points are not normalized exactly; they are only guaranteed to be
+	// within 2 * dblEpsilon of unit length.  Under the assumption that the two
+	// sides of (*) are nearly equal, the total error due to normalization errors
+	// can be shown to be at most
+	//
+	//        2 * dblEpsilon * (XA^2 + XB^2 + AB^2) + 8 * dblEpsilon ^ 2 .
+	//
+	// The other source of error is rounding of results in the calculation of (*).
+	// Each of XA^2, XB^2, AB^2 has a maximum relative error of 2.5 * dblEpsilon,
+	// plus an additional relative error of 0.5 * dblEpsilon in the final
+	// subtraction which we further bound as 0.25 * dblEpsilon * (XA^2 + XB^2 +
+	// AB^2) for convenience.  This yields a final error bound of
+	//
+	//        4.75 * dblEpsilon * (XA^2 + XB^2 + AB^2) + 8 * dblEpsilon ^ 2 .
+	ab2 := a.Sub(b.Vector).Norm2()
+	maxError := (4.75*dblEpsilon*(xa2+xb2+ab2) + 8*dblEpsilon*dblEpsilon)
+	if math.Abs(xa2-xb2) >= ab2+maxError {
 		return minDist, false
 	}
 
@@ -262,16 +286,22 @@ func interiorDist(x, a, b Point, minDist s1.ChordAngle, alwaysUpdate bool) (s1.C
 	c2 := c.Norm2()
 	xDotC := x.Dot(c.Vector)
 	xDotC2 := xDotC * xDotC
-	if !alwaysUpdate && xDotC2 >= c2*float64(minDist) {
-		// The closest point on the great circle AB is too far away.
+	if !alwaysUpdate && xDotC2 > c2*float64(minDist) {
+		// The closest point on the great circle AB is too far away.  We need to
+		// test this using ">" rather than ">=" because the actual minimum bound
+		// on the distance is (xDotC2 / c2), which can be rounded differently
+		// than the (more efficient) multiplicative test above.
 		return minDist, false
 	}
 
 	// Otherwise we do the exact, more expensive test for the interior case.
 	// This test is very likely to succeed because of the conservative planar
 	// test we did initially.
+	//
+	// TODO(roberts): Ensure that the errors in test are accurately reflected in the
+	// minUpdateInteriorDistanceMaxError.
 	cx := c.Cross(x.Vector)
-	if a.Dot(cx) >= 0 || b.Dot(cx) <= 0 {
+	if a.Sub(x.Vector).Dot(cx) >= 0 || b.Sub(x.Vector).Dot(cx) <= 0 {
 		return minDist, false
 	}
 

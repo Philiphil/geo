@@ -20,6 +20,12 @@ import (
 )
 
 // Some standard intervals for use throughout the tests.
+// These include the intervals spanning one or more "quadrants" which are
+// numbered as follows:
+//    quad1 == [0, π/2]
+//    quad2 == [π/2, π]
+//    quad3 == [-π, -π/2]
+//    quad4 == [-π/2, 0]
 var (
 	empty = EmptyInterval()
 	full  = FullInterval()
@@ -451,5 +457,161 @@ func TestExpanded(t *testing.T) {
 func TestIntervalString(t *testing.T) {
 	if s, exp := pi.String(), "[3.1415927, 3.1415927]"; s != exp {
 		t.Errorf("pi.String() = %q, want %q", s, exp)
+	}
+}
+
+func TestIntervalApproxEqual(t *testing.T) {
+	// Choose two values lo and hi such that it's okay to shift an endpoint by
+	// lo (i.e., the resulting interval is equivalent) but not by hi.
+	lo := 4 * dblEpsilon // < epsilon default
+	hi := 6 * dblEpsilon // > epsilon default
+
+	tests := []struct {
+		a, b Interval
+		want bool
+	}{
+		// Empty intervals.
+		{a: empty, b: empty, want: true},
+		{a: zero, b: empty, want: true},
+		{a: empty, b: zero, want: true},
+		{a: pi, b: empty, want: true},
+		{a: empty, b: pi, want: true},
+		{a: mipi, b: empty, want: true},
+		{a: empty, b: mipi, want: true},
+		{a: empty, b: full, want: false},
+		{a: empty, b: Interval{1, 1 + 2*lo}, want: true},
+		{a: empty, b: Interval{1, 1 + 2*hi}, want: false},
+		{a: Interval{math.Pi - lo, -math.Pi + lo}, b: empty, want: true},
+
+		// Full intervals.
+		{a: full, b: full, want: true},
+		{a: full, b: empty, want: false},
+		{a: full, b: zero, want: false},
+		{a: full, b: pi, want: false},
+		{a: full, b: Interval{lo, -lo}, want: true},
+		{a: full, b: Interval{2 * hi, 0}, want: false},
+		{a: Interval{-math.Pi + lo, math.Pi - lo}, b: full, want: true},
+		{a: Interval{-math.Pi, math.Pi - 2*hi}, b: full, want: false},
+
+		// Singleton intervals.
+		{a: pi, b: pi, want: true},
+		{a: mipi, b: pi, want: true},
+		{a: pi, b: Interval{math.Pi - lo, math.Pi - lo}, want: true},
+		{a: pi, b: Interval{math.Pi - hi, math.Pi - hi}, want: false},
+		{a: pi, b: Interval{math.Pi - lo, -math.Pi + lo}, want: true},
+		{a: pi, b: Interval{math.Pi - hi, -math.Pi}, want: false},
+		{a: zero, b: pi, want: false},
+		{a: pi.Union(mid12).Union(zero), b: quad12, want: true},
+		{a: quad2.Intersection(quad3), b: pi, want: true},
+		{a: quad3.Intersection(quad2), b: pi, want: true},
+
+		// Intervals whose corresponding endpoints are nearly the same but where the
+		// endpoints are in opposite order (i.e., inverted intervals).
+		{a: Interval{0, lo}, b: Interval{lo, 0}, want: false},
+		{a: Interval{math.Pi - 0.5*lo, -math.Pi + 0.5*lo}, b: Interval{-math.Pi + 0.5*lo, math.Pi - 0.5*lo}, want: false},
+
+		// Other intervals.
+		{a: Interval{1 - lo, 2 + lo}, b: Interval{1, 2}, want: true},
+		{a: Interval{1 + lo, 2 - lo}, b: Interval{1, 2}, want: true},
+		{a: Interval{2 - lo, 1 + lo}, b: Interval{2, 1}, want: true},
+		{a: Interval{2 + lo, 1 - lo}, b: Interval{2, 1}, want: true},
+		{a: Interval{1 - hi, 2 + lo}, b: Interval{1, 2}, want: false},
+		{a: Interval{1 + hi, 2 - lo}, b: Interval{1, 2}, want: false},
+		{a: Interval{2 - hi, 1 + lo}, b: Interval{2, 1}, want: false},
+		{a: Interval{2 + hi, 1 - lo}, b: Interval{2, 1}, want: false},
+		{a: Interval{1 - lo, 2 + hi}, b: Interval{1, 2}, want: false},
+		{a: Interval{1 + lo, 2 - hi}, b: Interval{1, 2}, want: false},
+		{a: Interval{2 - lo, 1 + hi}, b: Interval{2, 1}, want: false},
+		{a: Interval{2 + lo, 1 - hi}, b: Interval{2, 1}, want: false},
+	}
+
+	for _, test := range tests {
+		if got := test.a.ApproxEqual(test.b); got != test.want {
+			t.Errorf("%v.ApproxEqual(%v) = %t, want %t", test.a, test.b, got, test.want)
+		}
+	}
+}
+
+func TestIntervalComplement(t *testing.T) {
+	if !EmptyInterval().Complement().IsFull() {
+		t.Error("empty interval's complement is not full, but should be")
+	}
+	if !FullInterval().Complement().IsEmpty() {
+		t.Error("full interval's complement is not empty, but should be")
+	}
+	if !pi.Complement().IsFull() {
+		t.Errorf("pi's (%v) complement is not full, but should be", pi)
+	}
+	if !mipi.Complement().IsFull() {
+		t.Errorf("mipi's (%v) complement is not full, but should be", mipi)
+	}
+	if !zero.Complement().IsFull() {
+		t.Errorf("zero's (%v) complement is not full, but should be", zero)
+	}
+
+	if got := quad12.Complement(); !got.ApproxEqual(quad34) {
+		t.Errorf("%v.Complement = %v, want %v", quad12, got, quad34)
+	}
+	if got := quad34.Complement(); !got.ApproxEqual(quad12) {
+		t.Errorf("%v.Complement = %v, want %v", quad34, got, quad12)
+	}
+	if got := quad123.Complement(); !got.ApproxEqual(quad4) {
+		t.Errorf("%v.Complement = %v, want %v", quad123, got, quad4)
+	}
+}
+
+func TestIntervalDirectedHausdorff(t *testing.T) {
+	in := Interval{3.0, -3.0}
+	tests := []struct {
+		i, y Interval
+		want Angle
+	}{
+		{Interval{-0.139626, 0.349066}, Interval{0.139626, 0.139626}, 0.279252 * Radian},
+		{Interval{0.2, 0.4}, Interval{0.1, 0.5}, 0 * Radian},
+		{Interval{0, 0}, EmptyInterval(), math.Pi * Radian},
+		{empty, empty, 0.0},
+		{empty, mid12, 0.0},
+		{mid12, empty, math.Pi},
+		{quad12, quad123, 0.0},
+		{Interval{-0.1, 0.2}, in, 3.0},
+		{Interval{0.1, 0.2}, in, 3.0 - 0.1},
+		{Interval{-0.2, -0.1}, in, 3.0 - 0.1},
+	}
+
+	for _, test := range tests {
+		got := test.i.DirectedHausdorffDistance(test.y)
+		if math.Abs(float64(got-test.want)) > 1e-15 {
+			t.Errorf("%v.DirectedHausdorffDistance(%v) = %v, want %v", test.i, test.y, got.Radians(), test.want.Radians())
+		}
+	}
+}
+
+func TestIntervalProject(t *testing.T) {
+	r := IntervalFromEndpoints(-math.Pi, -math.Pi)
+	r1 := IntervalFromEndpoints(0, math.Pi)
+	r2 := IntervalFromEndpoints(math.Pi-0.1, -math.Pi+0.1)
+	tests := []struct {
+		interval Interval
+		have     float64
+		want     float64
+	}{
+		{r, -math.Pi, math.Pi},
+		{r, 0, math.Pi},
+
+		{r1, 0.1, 0.1},
+		{r1, -math.Pi/2 + 1e-15, 0},
+		{r1, -math.Pi/2 - 1e-15, math.Pi},
+		{r2, math.Pi, math.Pi},
+		{r2, 1e-15, math.Pi - 0.1},
+		{r2, -1e-15, -math.Pi + 0.1},
+		{full, 0, 0},
+		{full, math.Pi, math.Pi},
+		{full, -math.Pi, math.Pi},
+	}
+
+	for _, test := range tests {
+		if got := test.interval.Project(test.have); !float64Eq(got, test.want) {
+			t.Errorf("%v.Project(%v) = %v, want %v", test.interval, test.have, got, test.want)
+		}
 	}
 }

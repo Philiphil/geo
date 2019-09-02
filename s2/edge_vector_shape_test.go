@@ -31,7 +31,7 @@ type edgeVectorShape struct {
 func edgeVectorShapeFromPoints(a, b Point) *edgeVectorShape {
 	e := &edgeVectorShape{
 		edges: []Edge{
-			Edge{a, b},
+			{a, b},
 		},
 	}
 	return e
@@ -43,7 +43,6 @@ func (e *edgeVectorShape) Add(a, b Point) {
 }
 func (e *edgeVectorShape) NumEdges() int                          { return len(e.edges) }
 func (e *edgeVectorShape) Edge(id int) Edge                       { return e.edges[id] }
-func (e *edgeVectorShape) HasInterior() bool                      { return false }
 func (e *edgeVectorShape) ReferencePoint() ReferencePoint         { return OriginReferencePoint(false) }
 func (e *edgeVectorShape) NumChains() int                         { return len(e.edges) }
 func (e *edgeVectorShape) Chain(chainID int) Chain                { return Chain{chainID, 1} }
@@ -51,4 +50,6 @@ func (e *edgeVectorShape) ChainEdge(chainID, offset int) Edge     { return e.edg
 func (e *edgeVectorShape) ChainPosition(edgeID int) ChainPosition { return ChainPosition{edgeID, 0} }
 func (e *edgeVectorShape) IsEmpty() bool                          { return defaultShapeIsEmpty(e) }
 func (e *edgeVectorShape) IsFull() bool                           { return defaultShapeIsFull(e) }
-func (e *edgeVectorShape) dimension() dimension                   { return polylineGeometry }
+func (e *edgeVectorShape) Dimension() int                         { return 1 }
+func (e *edgeVectorShape) typeTag() typeTag                       { return typeTagNone }
+func (e *edgeVectorShape) privateInterface()                      {}

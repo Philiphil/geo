@@ -858,3 +858,252 @@ func TestRectIntersectsLngEdge(t *testing.T) {
 		}
 	}
 }
+
+// intervalDistance returns the minimum distance (in radians) from X to the latitude
+// line segment defined by the given latitude and longitude interval.
+func intervalDistance(x LatLng, lat s1.Angle, iv s1.Interval) s1.Angle {
+	// Is x inside the longitude interval?
+	if iv.Contains(float64(x.Lng)) {
+		return s1.Angle(math.Abs(float64(x.Lat - lat)))
+	}
+
+	return minAngle(
+		x.Distance(LatLng{lat, s1.Angle(iv.Lo)}),
+		x.Distance(LatLng{lat, s1.Angle(iv.Hi)}))
+}
+
+// Returns the minimum distance from X to the latitude line segment defined by
+// the given latitude and longitude interval.
+func bruteForceRectLatLngDistance(r Rect, ll LatLng) s1.Angle {
+	pt := PointFromLatLng(ll)
+	if r.ContainsPoint(pt) {
+		return 0
+	}
+
+	loLat := intervalDistance(ll, s1.Angle(r.Lat.Lo), r.Lng)
+	hiLat := intervalDistance(ll, s1.Angle(r.Lat.Hi), r.Lng)
+	loLng := DistanceFromSegment(PointFromLatLng(ll),
+		PointFromLatLng(LatLng{s1.Angle(r.Lat.Lo), s1.Angle(r.Lng.Lo)}),
+		PointFromLatLng(LatLng{s1.Angle(r.Lat.Hi), s1.Angle(r.Lng.Lo)}))
+	hiLng := DistanceFromSegment(PointFromLatLng(ll),
+		PointFromLatLng(LatLng{s1.Angle(r.Lat.Lo), s1.Angle(r.Lng.Hi)}),
+		PointFromLatLng(LatLng{s1.Angle(r.Lat.Hi), s1.Angle(r.Lng.Hi)}))
+
+	return minAngle(loLat, hiLat, loLng, hiLng)
+}
+
+func TestDistanceRectFromLatLng(t *testing.T) {
+	// Rect that spans 180.
+	a := RectFromLatLng(LatLngFromDegrees(-1, -1)).AddPoint(LatLngFromDegrees(2, 1))
+	// Rect near north pole.
+	b := RectFromLatLng(LatLngFromDegrees(86, 0)).AddPoint(LatLngFromDegrees(88, 2))
+	// Rect that touches north pole.
+	c := RectFromLatLng(LatLngFromDegrees(88, 0)).AddPoint(LatLngFromDegrees(90, 2))
+
+	tests := []struct {
+		r        Rect
+		lat, lng float64 // In degrees.
+	}{
+		{a, -2, -1},
+		{a, 1, 2},
+		{b, 87, 3},
+		{b, 87, -1},
+		{b, 89, 1},
+		{b, 89, 181},
+		{b, 85, 1},
+		{b, 85, 181},
+		{b, 90, 0},
+		{c, 89, 3},
+		{c, 89, 90},
+		{c, 89, 181},
+	}
+
+	for _, test := range tests {
+		ll := LatLngFromDegrees(test.lat, test.lng)
+		got := test.r.DistanceToLatLng(ll)
+		want := bruteForceRectLatLngDistance(test.r, ll)
+		if !float64Near(float64(got), float64(want), 1e-10) {
+			t.Errorf("dist from %v to %v = %v, want %v", test.r, ll, got, want)
+		}
+	}
+}
+
+func TestDistanceRectFromLatLngRandomPairs(t *testing.T) {
+	latlng := func() LatLng { return LatLngFromPoint(randomPoint()) }
+
+	for i := 0; i < 10000; i++ {
+		r := RectFromLatLng(latlng()).AddPoint(latlng())
+		ll := latlng()
+		got := r.DistanceToLatLng(ll)
+		want := bruteForceRectLatLngDistance(r, ll)
+		if !float64Near(float64(got), float64(want), 1e-10) {
+			t.Errorf("dist from %v to %v = %v, want %v", r, ll, got, want)
+		}
+	}
+}
+
+// This function assumes that DirectedHausdorffDistance() always returns
+// a distance from some point in a to b. So the function mainly tests whether
+// the returned distance is large enough, and only does a weak test on whether
+// it is small enough.
+func verifyDirectedHausdorffDistance(t *testing.T, a, b Rect) {
+	t.Helper()
+
+	const resolution = 0.1
+
+	// Record the max sample distance as well as the sample point realizing the
+	// max for easier debugging.
+	var maxDistance s1.Angle
+
+	sampleSizeOnLat := int(a.Lat.Length()/resolution) + 1
+	sampleSizeOnLng := int(a.Lng.Length()/resolution) + 1
+
+	deltaOnLat := s1.Angle(a.Lat.Length()) / s1.Angle(sampleSizeOnLat)
+	deltaOnLng := s1.Angle(a.Lng.Length()) / s1.Angle(sampleSizeOnLng)
+
+	ll := LatLng{Lng: s1.Angle(a.Lng.Lo)}
+	for i := 0; i <= sampleSizeOnLng; i++ {
+		ll.Lat = s1.Angle(a.Lat.Lo)
+
+		for j := 0; j <= sampleSizeOnLat; j++ {
+			d := b.DistanceToLatLng(ll.Normalized())
+			maxDistance = maxAngle(maxDistance, d)
+			ll.Lat += deltaOnLat
+		}
+		ll.Lng += deltaOnLng
+	}
+
+	got := a.DirectedHausdorffDistance(b)
+
+	if got < maxDistance-1e-10 {
+		t.Errorf("hausdorff(%v, %v) = %v < %v-eps, but shouldn't", a, b, got, maxDistance)
+	} else if got > maxDistance+resolution {
+		t.Errorf("DirectedHausdorffDistance(%v, %v) = %v > %v+resolution, but shouldn't", a, b, got, maxDistance)
+	}
+}
+
+func TestRectDirectedHausdorffDistanceRandomPairs(t *testing.T) {
+	// Test random pairs.
+	rnd := func() LatLng { return LatLngFromPoint(randomPoint()) }
+	for i := 0; i < 1000; i++ {
+		a := RectFromLatLng(rnd()).AddPoint(rnd())
+		b := RectFromLatLng(rnd()).AddPoint(rnd())
+		// a and b are *minimum* bounding rectangles of two random points, in
+		// particular, their Voronoi diagrams are always of the same topology. We
+		// take the "complements" of a and b for more thorough testing.
+		a2 := Rect{Lat: a.Lat, Lng: a.Lng.Complement()}
+		b2 := Rect{Lat: b.Lat, Lng: b.Lng.Complement()}
+
+		// Note that "a" and "b" come from the same distribution, so there is no
+		// need to test pairs such as (b, a), (b, a2), etc.
+		verifyDirectedHausdorffDistance(t, a, b)
+		verifyDirectedHausdorffDistance(t, a2, b)
+		verifyDirectedHausdorffDistance(t, a, b2)
+		verifyDirectedHausdorffDistance(t, a2, b2)
+	}
+}
+
+func TestDirectedHausdorffDistanceContained(t *testing.T) {
+	// Caller rect is contained in callee rect. Should return 0.
+	a := rectFromDegrees(-10, 20, -5, 90)
+	tests := []Rect{
+		rectFromDegrees(-10, 20, -5, 90),
+		rectFromDegrees(-10, 19, -5, 91),
+		rectFromDegrees(-11, 20, -4, 90),
+		rectFromDegrees(-11, 19, -4, 91),
+	}
+	for _, test := range tests {
+		got, want := a.DirectedHausdorffDistance(test), s1.Angle(0)
+		if got != want {
+			t.Errorf("%v.DirectedHausdorffDistance(%v) = %v, want %v", a, test, got, want)
+		}
+	}
+}
+
+func TestDirectHausdorffDistancePointToRect(t *testing.T) {
+	// The Hausdorff distance from a point to a rect should be the same as its
+	// distance to the rect.
+	a1 := LatLngFromDegrees(5, 8)
+	a2 := LatLngFromDegrees(90, 10) // North pole.
+
+	tests := []struct {
+		ll LatLng
+		b  Rect
+	}{
+		{a1, rectFromDegrees(-85, -50, -80, 10)},
+		{a2, rectFromDegrees(-85, -50, -80, 10)},
+		{a1, rectFromDegrees(4, -10, 80, 10)},
+		{a2, rectFromDegrees(4, -10, 80, 10)},
+		{a1, rectFromDegrees(70, 170, 80, -170)},
+		{a2, rectFromDegrees(70, 170, 80, -170)},
+	}
+	for _, test := range tests {
+		a := RectFromLatLng(test.ll)
+		got, want := a.DirectedHausdorffDistance(test.b), test.b.DistanceToLatLng(test.ll)
+
+		if !float64Eq(float64(got), float64(want)) {
+			t.Errorf("hausdorff(%v, %v) = %v, want %v, as that's the closest dist", test.b, a, got, want)
+		}
+	}
+}
+
+func TestDirectedHausdorffDistanceRectToPoint(t *testing.T) {
+	a := rectFromDegrees(1, -8, 10, 20)
+	tests := []struct {
+		lat, lng float64 // Degrees.
+	}{{5, 8}, {-6, -100}, {-90, -20}, {90, 0}}
+	for _, test := range tests {
+		verifyDirectedHausdorffDistance(t, a, RectFromLatLng(LatLngFromDegrees(test.lat, test.lng)))
+	}
+}
+
+func TestDirectedHausdorffDistanceRectToRectNearPole(t *testing.T) {
+	// Tests near south pole.
+	a := rectFromDegrees(-87, 0, -85, 3)
+	tests := []Rect{
+		rectFromDegrees(-89, 1, -88, 2),
+		rectFromDegrees(-84, 1, -83, 2),
+		rectFromDegrees(-88, 90, -86, 91),
+		rectFromDegrees(-84, -91, -83, -90),
+		rectFromDegrees(-90, 181, -89, 182),
+		rectFromDegrees(-84, 181, -83, 182),
+	}
+	for _, test := range tests {
+		verifyDirectedHausdorffDistance(t, a, test)
+	}
+}
+
+func TestDirectedHausdorffDistanceRectToRectDegenerateCases(t *testing.T) {
+	// Rectangles that contain poles.
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(0, 10, 90, 20), rectFromDegrees(-4, -10, 4, 0))
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(-4, -10, 4, 0), rectFromDegrees(0, 10, 90, 20))
+
+	// Two rectangles share same or complement longitudinal intervals.
+	a := rectFromDegrees(-50, -10, 50, 10)
+	b := rectFromDegrees(30, -10, 60, 10)
+	verifyDirectedHausdorffDistance(t, a, b)
+
+	c := Rect{Lat: a.Lat, Lng: a.Lng.Complement()}
+	verifyDirectedHausdorffDistance(t, c, b)
+
+	// Rectangle a touches b_opposite_lng.
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(10, 170, 30, 180), rectFromDegrees(-50, -10, 50, 10))
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(10, -180, 30, -170), rectFromDegrees(-50, -10, 50, 10))
+
+	// Rectangle b's Voronoi diagram is degenerate (lng interval spans 180
+	// degrees), and a touches the degenerate Voronoi vertex.
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(-30, 170, 30, 180), rectFromDegrees(-10, -90, 10, 90))
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(-30, -180, 30, -170), rectFromDegrees(-10, -90, 10, 90))
+
+	// Rectangle a touches a voronoi vertex of rectangle b.
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(-20, 105, 20, 110), rectFromDegrees(-30, 5, 30, 15))
+	verifyDirectedHausdorffDistance(t,
+		rectFromDegrees(-20, 95, 20, 105), rectFromDegrees(-30, 5, 30, 15))
+}

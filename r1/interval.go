@@ -59,7 +59,7 @@ func (i Interval) ContainsInterval(oi Interval) bool {
 	return i.Lo <= oi.Lo && oi.Hi <= i.Hi
 }
 
-// InteriorContains returns true iff the the interval strictly contains p.
+// InteriorContains returns true iff the interval strictly contains p.
 func (i Interval) InteriorContains(p float64) bool {
 	return i.Lo < p && p < i.Hi
 }
@@ -138,9 +138,14 @@ func (i Interval) Union(other Interval) Interval {
 
 func (i Interval) String() string { return fmt.Sprintf("[%.7f, %.7f]", i.Lo, i.Hi) }
 
-// epsilon is a small number that represents a reasonable level of noise between two
-// values that can be considered to be equal.
-const epsilon = 1e-14
+const (
+	// epsilon is a small number that represents a reasonable level of noise between two
+	// values that can be considered to be equal.
+	epsilon = 1e-15
+	// dblEpsilon is a smaller number for values that require more precision.
+	// This is the C++ DBL_EPSILON equivalent.
+	dblEpsilon = 2.220446049250313e-16
+)
 
 // ApproxEqual reports whether the interval can be transformed into the
 // given interval by moving each endpoint a small distance.
@@ -156,4 +161,17 @@ func (i Interval) ApproxEqual(other Interval) bool {
 	}
 	return math.Abs(other.Lo-i.Lo) <= epsilon &&
 		math.Abs(other.Hi-i.Hi) <= epsilon
+}
+
+// DirectedHausdorffDistance returns the Hausdorff distance to the given interval. For two
+// intervals x and y, this distance is defined as
+//     h(x, y) = max_{p in x} min_{q in y} d(p, q).
+func (i Interval) DirectedHausdorffDistance(other Interval) float64 {
+	if i.IsEmpty() {
+		return 0
+	}
+	if other.IsEmpty() {
+		return math.Inf(1)
+	}
+	return math.Max(0, math.Max(i.Hi-other.Hi, other.Lo-i.Lo))
 }
