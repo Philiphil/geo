@@ -66,6 +66,14 @@ func (o *Options) SetLevelMod(lm int) {
 	o.levelMod = lm
 }
 
+func (o *Options) SetPointsOnly(v bool) {
+	o.pointsOnly = v
+}
+
+func (o *Options) SetOptimizeSpace(v bool) {
+	o.optimizeSpace = v
+}
+
 func (o *Options) trueMaxLevel() int {
 	trueMax := o.maxLevel
 	if o.levelMod != 1 {
