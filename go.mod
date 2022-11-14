@@ -1,4 +1,4 @@
-module github.com/blevesearch/geo
+module github.com/Philiphil/geo
 
 go 1.12
 
