@@ -1,4 +1,4 @@
-module github.com/Philiphil/geo
+module github.com/philiphil/geo
 
 go 1.12
 
