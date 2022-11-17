@@ -165,7 +165,7 @@ func (l *Loop) initOriginAndBound() {
 	l.index.Add(l)
 }
 
-func (l *Loop) setDepth(i int) {
+func (l *Loop) SetDepth(i int) {
 	l.depth = i
 }
 
