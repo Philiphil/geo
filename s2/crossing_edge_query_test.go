@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/s1"
 )
 
 func perturbAtDistance(distance s1.Angle, a0, b0 Point) Point {

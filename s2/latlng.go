@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/golang/geo/r3"
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/r3"
+	"github.com/philiphil/geo/s1"
 )
 
 const (

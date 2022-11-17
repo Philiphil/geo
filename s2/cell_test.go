@@ -19,8 +19,8 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/golang/geo/r2"
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/r2"
+	"github.com/philiphil/geo/s1"
 )
 
 // maxCellSize is the upper bounds on the number of bytes we want the Cell object to ever be.

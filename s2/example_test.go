@@ -17,8 +17,8 @@ package s2_test
 import (
 	"fmt"
 
-	"github.com/golang/geo/s1"
-	"github.com/golang/geo/s2"
+	"github.com/philiphil/geo/s1"
+	"github.com/philiphil/geo/s2"
 )
 
 func ExampleRect_DistanceToLatLng() {
