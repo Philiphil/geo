@@ -35,7 +35,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/geo/r3"
+	"github.com/philiphil/geo/r3"
 )
 
 // writePoint formats the point and writes it to the given writer.
