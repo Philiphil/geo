@@ -38,16 +38,16 @@ import (
 //
 // Polygons have the following restrictions:
 //
-//  - Loops may not cross, i.e. the boundary of a loop may not intersect
-//    both the interior and exterior of any other loop.
+//   - Loops may not cross, i.e. the boundary of a loop may not intersect
+//     both the interior and exterior of any other loop.
 //
-//  - Loops may not share edges, i.e. if a loop contains an edge AB, then
-//    no other loop may contain AB or BA.
+//   - Loops may not share edges, i.e. if a loop contains an edge AB, then
+//     no other loop may contain AB or BA.
 //
-//  - Loops may share vertices, however no vertex may appear twice in a
-//    single loop (see Loop).
+//   - Loops may share vertices, however no vertex may appear twice in a
+//     single loop (see Loop).
 //
-//  - No loop may be empty. The full loop may appear only in the full polygon.
+//   - No loop may be empty. The full loop may appear only in the full polygon.
 type Polygon struct {
 	loops []*Loop
 
@@ -581,13 +581,13 @@ func (p *Polygon) LastDescendant(k int) int {
 }
 
 // CapBound returns a bounding spherical cap.
-func (p *Polygon) CapBound() Cap { return p.bound.CapBound() }
+func (p Polygon) CapBound() Cap { return p.bound.CapBound() }
 
 // RectBound returns a bounding latitude-longitude rectangle.
-func (p *Polygon) RectBound() Rect { return p.bound }
+func (p Polygon) RectBound() Rect { return p.bound }
 
 // ContainsPoint reports whether the polygon contains the point.
-func (p *Polygon) ContainsPoint(point Point) bool {
+func (p Polygon) ContainsPoint(point Point) bool {
 	// NOTE: A bounds check slows down this function by about 50%. It is
 	// worthwhile only when it might allow us to delay building the index.
 	if !p.index.IsFresh() && !p.bound.ContainsPoint(point) {
@@ -611,7 +611,7 @@ func (p *Polygon) ContainsPoint(point Point) bool {
 }
 
 // ContainsCell reports whether the polygon contains the given cell.
-func (p *Polygon) ContainsCell(cell Cell) bool {
+func (p Polygon) ContainsCell(cell Cell) bool {
 	it := p.index.Iterator()
 	relation := it.LocateCellID(cell.ID())
 
@@ -635,7 +635,7 @@ func (p *Polygon) ContainsCell(cell Cell) bool {
 }
 
 // IntersectsCell reports whether the polygon intersects the given cell.
-func (p *Polygon) IntersectsCell(cell Cell) bool {
+func (p Polygon) IntersectsCell(cell Cell) bool {
 	it := p.index.Iterator()
 	relation := it.LocateCellID(cell.ID())
 
@@ -663,7 +663,7 @@ func (p *Polygon) IntersectsCell(cell Cell) bool {
 }
 
 // CellUnionBound computes a covering of the Polygon.
-func (p *Polygon) CellUnionBound() []CellID {
+func (p Polygon) CellUnionBound() []CellID {
 	// TODO(roberts): Use ShapeIndexRegion when it's available.
 	return p.CapBound().CellUnionBound()
 }
