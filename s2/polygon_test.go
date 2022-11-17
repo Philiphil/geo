@@ -386,6 +386,15 @@ func TestPolygonIsValidLoopNestingInvalid(t *testing.T) {
 	}
 }
 
+func TestPolygonIsValidInconsistentOrientations(t *testing.T) {
+	const iters = 1000
+
+	for iter := 0; iter < iters; iter++ {
+		loops := generatePolygonConcentricTestLoops(2+randomUniformInt(5), 3)
+		checkPolygonInvalid(t, "inconsistent loop orientations", loops, true, nil)
+	}
+}
+
 // TODO(roberts): Implement remaining validity tests.
 // IsValidTests
 //   TestUnitLength
