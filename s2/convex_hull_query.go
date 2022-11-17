@@ -105,7 +105,7 @@ func (q *ConvexHullQuery) AddPolygon(p *Polygon) {
 //
 // Note that this method does not clear the geometry; you can continue
 // adding to it and call this method again if desired.
-func (q *ConvexHullQuery) CapBound() Cap {
+func (q ConvexHullQuery) CapBound() Cap {
 	// We keep track of a rectangular bound rather than a spherical cap because
 	// it is easy to compute a tight bound for a union of rectangles, whereas it
 	// is quite difficult to compute a tight bound around a union of caps.

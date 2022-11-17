@@ -542,14 +542,14 @@ func (l *Loop) Vertices() []Point {
 
 // RectBound returns a tight bounding rectangle. If the loop contains the point,
 // the bound also contains it.
-func (l *Loop) RectBound() Rect {
+func (l Loop) RectBound() Rect {
 	return l.bound
 }
 
 // CapBound returns a bounding cap that may have more padding than the corresponding
 // RectBound. The bound is conservative such that if the loop contains a point P,
 // the bound also contains it.
-func (l *Loop) CapBound() Cap {
+func (l Loop) CapBound() Cap {
 	return l.bound.CapBound()
 }
 
@@ -596,7 +596,7 @@ func (l *Loop) bruteForceContainsPoint(p Point) bool {
 }
 
 // ContainsPoint returns true if the loop contains the point.
-func (l *Loop) ContainsPoint(p Point) bool {
+func (l Loop) ContainsPoint(p Point) bool {
 	if !l.index.IsFresh() && !l.bound.ContainsPoint(p) {
 		return false
 	}
@@ -627,7 +627,7 @@ func (l *Loop) ContainsPoint(p Point) bool {
 }
 
 // ContainsCell reports whether the given Cell is contained by this Loop.
-func (l *Loop) ContainsCell(target Cell) bool {
+func (l Loop) ContainsCell(target Cell) bool {
 	it := l.index.Iterator()
 	relation := it.LocateCellID(target.ID())
 
@@ -651,7 +651,7 @@ func (l *Loop) ContainsCell(target Cell) bool {
 }
 
 // IntersectsCell reports whether this Loop intersects the given cell.
-func (l *Loop) IntersectsCell(target Cell) bool {
+func (l Loop) IntersectsCell(target Cell) bool {
 	it := l.index.Iterator()
 	relation := it.LocateCellID(target.ID())
 
@@ -679,7 +679,7 @@ func (l *Loop) IntersectsCell(target Cell) bool {
 }
 
 // CellUnionBound computes a covering of the Loop.
-func (l *Loop) CellUnionBound() []CellID {
+func (l Loop) CellUnionBound() []CellID {
 	return l.CapBound().CellUnionBound()
 }
 
