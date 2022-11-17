@@ -295,17 +295,17 @@ func (cu *CellUnion) Denormalize(minLevel, levelMod int) {
 }
 
 // RectBound returns a Rect that bounds this entity.
-func (cu *CellUnion) RectBound() Rect {
+func (cu CellUnion) RectBound() Rect {
 	bound := EmptyRect()
-	for _, c := range *cu {
+	for _, c := range cu {
 		bound = bound.Union(CellFromCellID(c).RectBound())
 	}
 	return bound
 }
 
 // CapBound returns a Cap that bounds this entity.
-func (cu *CellUnion) CapBound() Cap {
-	if len(*cu) == 0 {
+func (cu CellUnion) CapBound() Cap {
+	if len(cu) == 0 {
 		return EmptyCap()
 	}
 
@@ -313,7 +313,7 @@ func (cu *CellUnion) CapBound() Cap {
 	// bounding cap of minimal area, but it should be close enough.
 	var centroid Point
 
-	for _, ci := range *cu {
+	for _, ci := range cu {
 		area := AvgAreaMetric.Value(ci.Level())
 		centroid = Point{centroid.Add(ci.Point().Mul(area))}
 	}
@@ -329,7 +329,7 @@ func (cu *CellUnion) CapBound() Cap {
 	// *not* sufficient to just bound all the cell vertices because the bounding
 	// cap may be concave (i.e. cover more than one hemisphere).
 	c := CapFromPoint(centroid)
-	for _, ci := range *cu {
+	for _, ci := range cu {
 		c = c.AddCap(CellFromCellID(ci).CapBound())
 	}
 
@@ -337,22 +337,22 @@ func (cu *CellUnion) CapBound() Cap {
 }
 
 // ContainsCell reports whether this cell union contains the given cell.
-func (cu *CellUnion) ContainsCell(c Cell) bool {
+func (cu CellUnion) ContainsCell(c Cell) bool {
 	return cu.ContainsCellID(c.id)
 }
 
 // IntersectsCell reports whether this cell union intersects the given cell.
-func (cu *CellUnion) IntersectsCell(c Cell) bool {
+func (cu CellUnion) IntersectsCell(c Cell) bool {
 	return cu.IntersectsCellID(c.id)
 }
 
 // ContainsPoint reports whether this cell union contains the given point.
-func (cu *CellUnion) ContainsPoint(p Point) bool {
+func (cu CellUnion) ContainsPoint(p Point) bool {
 	return cu.ContainsCell(CellFromPoint(p))
 }
 
 // CellUnionBound computes a covering of the CellUnion.
-func (cu *CellUnion) CellUnionBound() []CellID {
+func (cu CellUnion) CellUnionBound() []CellID {
 	return cu.CapBound().CellUnionBound()
 }
 
