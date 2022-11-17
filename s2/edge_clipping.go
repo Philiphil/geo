@@ -27,9 +27,9 @@ package s2
 import (
 	"math"
 
-	"github.com/golang/geo/r1"
-	"github.com/golang/geo/r2"
-	"github.com/golang/geo/r3"
+	"github.com/philiphil/geo/r1"
+	"github.com/philiphil/geo/r2"
+	"github.com/philiphil/geo/r3"
 )
 
 const (
@@ -482,9 +482,10 @@ func clipEdgeBound(a, b r2.Point, clip, bound r2.Rect) (r2.Rect, bool) {
 
 // interpolateFloat64 returns a value with the same combination of a1 and b1 as the
 // given value x is of a and b. This function makes the following guarantees:
-//  - If x == a, then x1 = a1 (exactly).
-//  - If x == b, then x1 = b1 (exactly).
-//  - If a <= x <= b, then a1 <= x1 <= b1 (even if a1 == b1).
+//   - If x == a, then x1 = a1 (exactly).
+//   - If x == b, then x1 = b1 (exactly).
+//   - If a <= x <= b, then a1 <= x1 <= b1 (even if a1 == b1).
+//
 // This requires a != b.
 func interpolateFloat64(x, a, b, a1, b1 float64) float64 {
 	// To get results that are accurate near both A and B, we interpolate

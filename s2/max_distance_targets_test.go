@@ -19,7 +19,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/s1"
 )
 
 func TestDistanceTargetMaxCellTargetCapBound(t *testing.T) {

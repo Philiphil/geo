@@ -18,9 +18,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/golang/geo/r1"
-	"github.com/golang/geo/r3"
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/r1"
+	"github.com/philiphil/geo/r3"
+	"github.com/philiphil/geo/s1"
 )
 
 func TestTextFormatWritePoints(t *testing.T) {
