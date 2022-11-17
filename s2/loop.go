@@ -165,6 +165,10 @@ func (l *Loop) initOriginAndBound() {
 	l.index.Add(l)
 }
 
+func (l *Loop) setDepth(i int) {
+	l.depth = i
+}
+
 // initBound sets up the approximate bounding Rects for this loop.
 func (l *Loop) initBound() {
 	if len(l.vertices) == 0 {
