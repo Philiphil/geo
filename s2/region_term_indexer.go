@@ -75,7 +75,7 @@ package s2
 import (
 	"strings"
 
-	"github.com/golang/geo/s1"
+	"github.com/philiphil/geo/s1"
 )
 
 type TermType int
