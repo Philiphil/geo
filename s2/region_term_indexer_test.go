@@ -15,6 +15,7 @@
 package s2
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -87,6 +88,7 @@ func testRandomCaps(t *testing.T, option Options, queryType QueryType) {
 
 		for _, term := range terms {
 			docIDs := index[term]
+			fmt.Printf("term: %s docIDs %+v", term, docIDs)
 			for _, id := range docIDs {
 				actual = append(actual, id)
 			}
